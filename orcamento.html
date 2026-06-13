@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Orçamento — Equipe Bauzinho</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;600;700;800&family=Barlow+Condensed:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --preto: #06080D;
+    --azul: #1A6FFF;
+    --azul-brilho: #4D9FFF;
+    --branco: #EEF2FF;
+    --cinza: #141828;
+    --cinza2: #1E2438;
+    --muted: #7880A0;
+    --verde: #22C55E;
+    --borda: rgba(26,111,255,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--preto);
+    color: var(--branco);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(26,111,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(26,111,255,0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .wrap {
+    max-width: 1000px; margin: 0 auto;
+    padding: 40px 20px 80px;
+    position: relative; z-index: 1;
+  }
+
+  /* HEADER */
+  .top-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 40px;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px; letter-spacing: 4px;
+    color: var(--branco); text-decoration: none;
+  }
+
+  .logo span { color: var(--azul); }
+
+  .back-link {
+    font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--muted);
+    text-decoration: none; transition: color 0.2s;
+  }
+
+  .back-link:hover { color: var(--branco); }
+
+  /* TÍTULO */
+  .page-header { margin-bottom: 36px; }
+  .page-badge {
+    display: inline-block;
+    background: rgba(26,111,255,0.12); border: 1px solid rgba(26,111,255,0.3);
+    color: var(--azul-brilho); font-size: 10px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase;
+    padding: 5px 14px; border-radius: 2px; margin-bottom: 14px;
+  }
+
+  .page-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(36px, 7vw, 60px);
+    line-height: 0.92; letter-spacing: 2px; margin-bottom: 10px;
+  }
+
+  .page-title span { color: var(--azul); }
+  .page-desc { font-size: 14px; color: var(--muted); line-height: 1.6; max-width: 440px; }
+
+  /* LAYOUT DOIS PAINÉIS */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* FORMULÁRIO */
+  .form-card {
+    background: var(--cinza2);
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    padding: 28px;
+    position: relative; overflow: hidden;
+  }
+
+  .form-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; background: linear-gradient(90deg, var(--azul), transparent 70%);
+  }
+
+  .form-section-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px; font-weight: 800; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--azul-brilho);
+    margin-bottom: 16px; padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .field { margin-bottom: 14px; }
+
+  label {
+    display: block; font-size: 10px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 7px;
+  }
+
+  input, textarea, select {
+    width: 100%;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(26,111,255,0.18);
+    border-radius: 4px;
+    color: var(--branco);
+    font-family: 'Barlow', sans-serif;
+    font-size: 14px; font-weight: 500;
+    padding: 11px 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--azul);
+    box-shadow: 0 0 0 3px rgba(26,111,255,0.12);
+  }
+
+  input::placeholder, textarea::placeholder { color: rgba(136,144,170,0.35); }
+  textarea { resize: vertical; min-height: 70px; }
+
+  select option { background: #1E2438; }
+
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .valor-wrap { position: relative; }
+  .valor-prefix {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); font-size: 13px; font-weight: 600; pointer-events: none;
+  }
+
+  .valor-wrap input { padding-left: 42px; }
+
+  .divider-form {
+    height: 1px; background: rgba(255,255,255,0.05);
+    margin: 18px 0;
+  }
+
+  /* BOTÃO GERAR */
+  .btn-gerar {
+    width: 100%; padding: 16px;
+    background: var(--azul); color: #fff; border: none;
+    border-radius: 4px; cursor: pointer;
+    font-family: 'Barlow', sans-serif;
+    font-size: 14px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: all 0.2s; margin-top: 6px;
+  }
+
+  .btn-gerar:hover {
+    background: var(--azul-brilho);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(26,111,255,0.35);
+  }
+
+  /* PREVIEW DO ORÇAMENTO */
+  .preview-wrap { position: sticky; top: 24px; }
+
+  .preview-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+
+  .preview-label::after {
+    content: ''; flex: 1; height: 1px;
+    background: rgba(255,255,255,0.06);
+  }
+
+  /* O ORÇAMENTO EM SI — estilo documento */
+  .orcamento-doc {
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    font-family: 'Inter', sans-serif;
+    color: #1a1a2e;
+  }
+
+  .doc-header {
+    background: #0A1628;
+    padding: 24px 28px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+
+  .doc-logo-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px; letter-spacing: 3px; color: #fff;
+  }
+
+  .doc-logo-text span { color: #4D9FFF; }
+
+  .doc-logo-sub {
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+    color: rgba(255,255,255,0.4); margin-top: 2px;
+  }
+
+  .doc-num {
+    text-align: right;
+  }
+
+  .doc-num-label {
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .doc-num-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px; letter-spacing: 2px; color: #4D9FFF;
+  }
+
+  .doc-num-date {
+    font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 2px;
+  }
+
+  .doc-body { padding: 24px 28px; }
+
+  .doc-section-title {
+    font-size: 8px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: #8890AA;
+    margin-bottom: 8px; padding-bottom: 6px;
+    border-bottom: 1px solid #E8ECF8;
+  }
+
+  .doc-client-name {
+    font-size: 18px; font-weight: 700; color: #0A1628; margin-bottom: 2px;
+  }
+
+  .doc-client-info { font-size: 11px; color: #8890AA; }
+
+  .doc-rota {
+    margin: 18px 0;
+    background: #F4F6FF;
+    border-radius: 4px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+
+  .doc-rota-item { flex: 1; }
+  .doc-rota-label { font-size: 8px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #8890AA; margin-bottom: 3px; }
+  .doc-rota-val { font-size: 13px; font-weight: 700; color: #0A1628; }
+
+  .doc-rota-arrow {
+    color: #1A6FFF; font-size: 18px; font-weight: 700; flex-shrink: 0;
+  }
+
+  .doc-table { width: 100%; border-collapse: collapse; margin: 14px 0; }
+  .doc-table th {
+    text-align: left; font-size: 8px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: #8890AA; padding: 6px 0; border-bottom: 1px solid #E8ECF8;
+  }
+  .doc-table td {
+    padding: 10px 0; font-size: 12px; color: #2A3050;
+    border-bottom: 1px solid #F0F2FA;
+  }
+  .doc-table td:last-child { text-align: right; font-weight: 700; }
+  .doc-table tr:last-child td { border-bottom: none; }
+
+  .doc-total {
+    background: #0A1628; border-radius: 4px;
+    padding: 14px 18px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 12px;
+  }
+
+  .doc-total-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: rgba(255,255,255,0.5);
+  }
+
+  .doc-total-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px; letter-spacing: 1px; color: #22C55E;
+  }
+
+  .doc-obs {
+    margin-top: 14px; padding: 12px 14px;
+    background: #F4F6FF; border-radius: 4px;
+    font-size: 11px; color: #6870A0; line-height: 1.6;
+  }
+
+  .doc-obs-title {
+    font-size: 8px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: #8890AA; margin-bottom: 4px;
+  }
+
+  .doc-validade {
+    margin-top: 12px; font-size: 10px; color: #B0B8D0;
+    text-align: center; padding-top: 12px;
+    border-top: 1px solid #E8ECF8;
+  }
+
+  .doc-footer {
+    background: #F4F6FF; padding: 12px 28px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .doc-footer-brand {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px; letter-spacing: 3px; color: #8890AA;
+  }
+
+  .doc-footer-brand span { color: #1A6FFF; }
+
+  .doc-footer-contact { font-size: 10px; color: #8890AA; text-align: right; }
+
+  /* AÇÕES */
+  .acoes {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    margin-top: 14px;
+  }
+
+  .btn-acao {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px; border-radius: 4px; border: none; cursor: pointer;
+    font-family: 'Barlow', sans-serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    transition: all 0.2s;
+  }
+
+  .btn-pdf {
+    background: var(--azul); color: #fff;
+  }
+
+  .btn-pdf:hover { background: var(--azul-brilho); transform: translateY(-1px); box-shadow: 0 8px 20px rgba(26,111,255,0.3); }
+
+  .btn-wpp {
+    background: #16A34A; color: #fff;
+  }
+
+  .btn-wpp:hover { background: #22C55E; transform: translateY(-1px); }
+
+  /* NÚMERO DO ORÇAMENTO */
+  #num-display { color: #4D9FFF; }
+
+  @media(max-width: 768px) {
+    .two-col { grid-template-columns: 1fr; }
+    .preview-wrap { position: static; }
+    .field-row { grid-template-columns: 1fr; }
+    .acoes { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- NAV -->
+  <div class="top-nav">
+    <a class="logo" href="index.html">EQUIPE <span>BAUZINHO</span></a>
+    <a class="back-link" href="index.html">← Voltar ao início</a>
+  </div>
+
+  <!-- TÍTULO -->
+  <div class="page-header">
+    <div class="page-badge">Ferramenta gratuita</div>
+    <h1 class="page-title">Gerador de<br><span>Orçamento</span></h1>
+    <p class="page-desc">Crie um orçamento profissional em 10 segundos. Pronto para enviar pelo WhatsApp ou salvar em PDF.</p>
+  </div>
+
+  <!-- DOIS PAINÉIS -->
+  <div class="two-col">
+
+    <!-- FORMULÁRIO -->
+    <div class="form-card">
+
+      <div class="form-section-title">Dados do cliente</div>
+
+      <div class="field">
+        <label>Nome do cliente</label>
+        <input type="text" id="f-cliente" placeholder="Ex: João Silva" oninput="atualizar()">
+      </div>
+
+      <div class="field">
+        <label>Telefone do cliente</label>
+        <input type="text" id="f-telefone" placeholder="(31) 9 9999-9999" oninput="atualizar()">
+      </div>
+
+      <div class="divider-form"></div>
+      <div class="form-section-title">Dados do frete</div>
+
+      <div class="field">
+        <label>Origem</label>
+        <input type="text" id="f-origem" placeholder="Ex: Belo Horizonte, MG" oninput="atualizar()">
+      </div>
+
+      <div class="field">
+        <label>Destino</label>
+        <input type="text" id="f-destino" placeholder="Ex: Contagem, MG" oninput="atualizar()">
+      </div>
+
+      <div class="field">
+        <label>Descrição da carga</label>
+        <input type="text" id="f-carga" placeholder="Ex: Móveis, caixas, equipamentos..." oninput="atualizar()">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Data do serviço</label>
+          <input type="date" id="f-data" oninput="atualizar()">
+        </div>
+        <div class="field">
+          <label>Prazo de entrega</label>
+          <input type="text" id="f-prazo" placeholder="Ex: No mesmo dia" oninput="atualizar()">
+        </div>
+      </div>
+
+      <div class="divider-form"></div>
+      <div class="form-section-title">Valor</div>
+
+      <div class="field">
+        <label>Valor do frete (R$)</label>
+        <div class="valor-wrap">
+          <span class="valor-prefix">R$</span>
+          <input type="number" id="f-valor" placeholder="350,00" min="0" step="0.01" oninput="atualizar()">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Forma de pagamento</label>
+        <select id="f-pagamento" onchange="atualizar()">
+          <option value="A combinar">A combinar</option>
+          <option value="PIX">PIX</option>
+          <option value="Dinheiro">Dinheiro</option>
+          <option value="PIX ou Dinheiro">PIX ou Dinheiro</option>
+          <option value="50% na saída + 50% na entrega">50% na saída + 50% na entrega</option>
+          <option value="Pagamento na entrega">Pagamento na entrega</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Observações (opcional)</label>
+        <textarea id="f-obs" placeholder="Ex: Necessário ajudante para carga e descarga. Orçamento válido por 24 horas." oninput="atualizar()"></textarea>
+      </div>
+
+      <div class="divider-form"></div>
+      <div class="form-section-title">Validade do orçamento</div>
+
+      <div class="field">
+        <label>Válido por</label>
+        <select id="f-validade" onchange="atualizar()">
+          <option value="24 horas">24 horas</option>
+          <option value="48 horas">48 horas</option>
+          <option value="3 dias">3 dias</option>
+          <option value="7 dias">7 dias</option>
+        </select>
+      </div>
+
+      <button class="btn-gerar" onclick="gerarPDF()">
+        📄 Gerar PDF
+      </button>
+    </div>
+
+    <!-- PREVIEW -->
+    <div class="preview-wrap">
+      <div class="preview-label">Pré-visualização</div>
+
+      <div class="orcamento-doc" id="orcamento-doc">
+
+        <div class="doc-header">
+          <div>
+            <div class="doc-logo-text">EQUIPE <span>BAUZINHO</span></div>
+            <div class="doc-logo-sub">Frete com propósito</div>
+          </div>
+          <div class="doc-num">
+            <div class="doc-num-label">Orçamento</div>
+            <div class="doc-num-val" id="num-display">#001</div>
+            <div class="doc-num-date" id="doc-data-display">—</div>
+          </div>
+        </div>
+
+        <div class="doc-body">
+
+          <div class="doc-section-title">Cliente</div>
+          <div class="doc-client-name" id="doc-cliente">—</div>
+          <div class="doc-client-info" id="doc-telefone">—</div>
+
+          <div class="doc-rota">
+            <div class="doc-rota-item">
+              <div class="doc-rota-label">Origem</div>
+              <div class="doc-rota-val" id="doc-origem">—</div>
+            </div>
+            <div class="doc-rota-arrow">→</div>
+            <div class="doc-rota-item">
+              <div class="doc-rota-label">Destino</div>
+              <div class="doc-rota-val" id="doc-destino">—</div>
+            </div>
+          </div>
+
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th>Descrição</th>
+                <th>Prazo</th>
+                <th>Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td id="doc-carga">Serviço de frete</td>
+                <td id="doc-prazo">—</td>
+                <td id="doc-valor-linha">R$ —</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="doc-total">
+            <div class="doc-total-label">Total</div>
+            <div class="doc-total-val" id="doc-total">R$ —</div>
+          </div>
+
+          <div style="margin-top:10px;font-size:11px;color:#6870A0;display:flex;justify-content:space-between">
+            <span>Forma de pagamento:</span>
+            <span id="doc-pagamento" style="font-weight:600;color:#2A3050">A combinar</span>
+          </div>
+
+          <div class="doc-obs" id="doc-obs-box" style="display:none">
+            <div class="doc-obs-title">Observações</div>
+            <div id="doc-obs-text"></div>
+          </div>
+
+          <div class="doc-validade" id="doc-validade">Orçamento válido por 24 horas</div>
+
+        </div>
+
+        <div class="doc-footer">
+          <div class="doc-footer-brand">EQUIPE <span>BAUZINHO</span></div>
+          <div class="doc-footer-contact">
+            (31) 9 8837-4313<br>
+            @equipebauzinho
+          </div>
+        </div>
+
+      </div>
+
+      <!-- AÇÕES -->
+      <div class="acoes">
+        <button class="btn-acao btn-pdf" onclick="gerarPDF()">📄 Baixar PDF</button>
+        <button class="btn-acao btn-wpp" onclick="enviarWPP()">💬 Enviar WhatsApp</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const { jsPDF } = window.jspdf;
+
+  // Número do orçamento — incrementa a cada sessão
+  let numOrc = parseInt(localStorage.getItem('orcNum') || '0') + 1;
+  localStorage.setItem('orcNum', numOrc);
+  const numStr = '#' + String(numOrc).padStart(3, '0');
+  document.getElementById('num-display').textContent = numStr;
+
+  // Data padrão = hoje
+  const hoje = new Date();
+  const hojeStr = hoje.toISOString().split('T')[0];
+  document.getElementById('f-data').value = hojeStr;
+  document.getElementById('doc-data-display').textContent = formatarData(hojeStr);
+
+  function g(id) { return document.getElementById(id); }
+  function val(id) { return g(id).value.trim(); }
+
+  function formatarData(str) {
+    if (!str) return '—';
+    const [y, m, d] = str.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  function fmt(n) {
+    const num = parseFloat(n);
+    if (isNaN(num)) return '—';
+    return 'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function atualizar() {
+    const cliente   = val('f-cliente') || '—';
+    const telefone  = val('f-telefone') || '—';
+    const origem    = val('f-origem') || '—';
+    const destino   = val('f-destino') || '—';
+    const carga     = val('f-carga') || 'Serviço de frete';
+    const data      = val('f-data');
+    const prazo     = val('f-prazo') || '—';
+    const valor     = val('f-valor');
+    const pagamento = val('f-pagamento');
+    const obs       = val('f-obs');
+    const validade  = val('f-validade');
+
+    g('doc-cliente').textContent     = cliente;
+    g('doc-telefone').textContent    = telefone;
+    g('doc-origem').textContent      = origem;
+    g('doc-destino').textContent     = destino;
+    g('doc-carga').textContent       = carga;
+    g('doc-prazo').textContent       = prazo;
+    g('doc-valor-linha').textContent = fmt(valor);
+    g('doc-total').textContent       = fmt(valor);
+    g('doc-pagamento').textContent   = pagamento;
+    g('doc-validade').textContent    = `Orçamento válido por ${validade}`;
+    g('doc-data-display').textContent = data ? formatarData(data) : '—';
+
+    if (obs) {
+      g('doc-obs-box').style.display = 'block';
+      g('doc-obs-text').textContent = obs;
+    } else {
+      g('doc-obs-box').style.display = 'none';
+    }
+  }
+
+  function gerarPDF() {
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297;
+    const mg = 20;
+
+    // Header fundo escuro
+    doc.setFillColor(10, 22, 40);
+    doc.rect(0, 0, W, 42, 'F');
+
+    // Logo
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(255, 255, 255);
+    doc.text('EQUIPE ', mg, 20);
+    const lw = doc.getTextWidth('EQUIPE ');
+    doc.setTextColor(77, 159, 255);
+    doc.text('BAUZINHO', mg + lw, 20);
+
+    doc.setFontSize(7);
+    doc.setTextColor(120, 128, 160);
+    doc.text('FRETE COM PROPÓSITO', mg, 26);
+
+    // Número
+    doc.setFontSize(7);
+    doc.setTextColor(120, 128, 160);
+    doc.text('ORÇAMENTO', W - mg, 15, { align: 'right' });
+    doc.setFontSize(18);
+    doc.setTextColor(77, 159, 255);
+    doc.text(numStr, W - mg, 22, { align: 'right' });
+    doc.setFontSize(8);
+    doc.setTextColor(100, 110, 140);
+    const dataFmt = val('f-data') ? formatarData(val('f-data')) : '—';
+    doc.text(dataFmt, W - mg, 28, { align: 'right' });
+
+    let y = 54;
+
+    // CLIENTE
+    doc.setFontSize(7);
+    doc.setTextColor(136, 144, 160);
+    doc.text('CLIENTE', mg, y);
+    y += 5;
+    doc.setLine(0.2);
+    doc.setDrawColor(230, 232, 248);
+    doc.line(mg, y, W - mg, y);
+    y += 6;
+
+    doc.setFontSize(14);
+    doc.setTextColor(10, 22, 40);
+    doc.text(val('f-cliente') || '—', mg, y);
+    y += 6;
+    doc.setFontSize(9);
+    doc.setTextColor(100, 110, 140);
+    doc.text(val('f-telefone') || '—', mg, y);
+    y += 12;
+
+    // ROTA — caixa azul clara
+    doc.setFillColor(244, 246, 255);
+    doc.roundedRect(mg, y, W - mg*2, 20, 2, 2, 'F');
+
+    doc.setFontSize(7);
+    doc.setTextColor(136, 144, 160);
+    doc.text('ORIGEM', mg + 6, y + 6);
+    doc.setFontSize(10);
+    doc.setTextColor(10, 22, 40);
+    doc.text(val('f-origem') || '—', mg + 6, y + 13);
+
+    doc.setFontSize(14);
+    doc.setTextColor(26, 111, 255);
+    doc.text('→', W / 2, y + 13, { align: 'center' });
+
+    doc.setFontSize(7);
+    doc.setTextColor(136, 144, 160);
+    doc.text('DESTINO', W - mg - 6, y + 6, { align: 'right' });
+    doc.setFontSize(10);
+    doc.setTextColor(10, 22, 40);
+    doc.text(val('f-destino') || '—', W - mg - 6, y + 13, { align: 'right' });
+
+    y += 28;
+
+    // TABELA
+    doc.setFontSize(7);
+    doc.setTextColor(136, 144, 160);
+    const cols = ['DESCRIÇÃO', 'DATA DO SERVIÇO', 'PRAZO', 'VALOR'];
+    const colX = [mg, mg + 74, mg + 118, W - mg];
+    cols.forEach((c, i) => {
+      const align = i === cols.length - 1 ? 'right' : 'left';
+      doc.text(c, colX[i], y, { align });
+    });
+    y += 4;
+    doc.setDrawColor(230, 232, 248);
+    doc.line(mg, y, W - mg, y);
+    y += 7;
+
+    doc.setFontSize(10);
+    doc.setTextColor(42, 48, 80);
+    doc.text(val('f-carga') || 'Serviço de frete', mg, y);
+    doc.text(dataFmt, mg + 74, y);
+    doc.text(val('f-prazo') || '—', mg + 118, y);
+    doc.setFont('helvetica', 'bold');
+    doc.text(fmt(val('f-valor')), W - mg, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    y += 5;
+    doc.setDrawColor(240, 242, 250);
+    doc.line(mg, y, W - mg, y);
+    y += 10;
+
+    // TOTAL
+    doc.setFillColor(10, 22, 40);
+    doc.roundedRect(mg, y, W - mg*2, 18, 2, 2, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(180, 190, 210);
+    doc.text('TOTAL', mg + 8, y + 11);
+    doc.setFontSize(18);
+    doc.setTextColor(34, 197, 94);
+    doc.text(fmt(val('f-valor')), W - mg - 8, y + 12, { align: 'right' });
+    y += 26;
+
+    // PAGAMENTO
+    doc.setFontSize(9);
+    doc.setTextColor(100, 110, 140);
+    doc.text('Forma de pagamento:', mg, y);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(42, 48, 80);
+    doc.text(val('f-pagamento'), mg + 48, y);
+    doc.setFont('helvetica', 'normal');
+    y += 12;
+
+    // OBS
+    const obs = val('f-obs');
+    if (obs) {
+      doc.setFillColor(244, 246, 255);
+      const obsLines = doc.splitTextToSize(obs, W - mg*2 - 16);
+      const obsH = obsLines.length * 5 + 14;
+      doc.roundedRect(mg, y, W - mg*2, obsH, 2, 2, 'F');
+      doc.setFontSize(7);
+      doc.setTextColor(136, 144, 160);
+      doc.text('OBSERVAÇÕES', mg + 6, y + 7);
+      doc.setFontSize(9);
+      doc.setTextColor(100, 110, 140);
+      doc.text(obsLines, mg + 6, y + 13);
+      y += obsH + 8;
+    }
+
+    // VALIDADE
+    doc.setFontSize(8);
+    doc.setTextColor(150, 160, 190);
+    doc.text(`Orçamento válido por ${val('f-validade')}`, W / 2, y + 4, { align: 'center' });
+    y += 14;
+
+    // RODAPÉ
+    doc.setFillColor(244, 246, 255);
+    doc.rect(0, H - 20, W, 20, 'F');
+    doc.setFontSize(11);
+    doc.setTextColor(136, 144, 160);
+    doc.text('EQUIPE ', mg, H - 9);
+    const fw = doc.getTextWidth('EQUIPE ');
+    doc.setTextColor(26, 111, 255);
+    doc.text('BAUZINHO', mg + fw, H - 9);
+
+    doc.setFontSize(8);
+    doc.setTextColor(136, 144, 160);
+    doc.text('(31) 9 8837-4313 • @equipebauzinho', W - mg, H - 9, { align: 'right' });
+
+    const cliente = val('f-cliente').replace(/\s+/g, '-').toLowerCase() || 'cliente';
+    doc.save(`orcamento-${cliente}-${numStr.replace('#','')}.pdf`);
+  }
+
+  function enviarWPP() {
+    const tel = val('f-telefone').replace(/\D/g, '');
+    const cliente = val('f-cliente') || '—';
+    const origem  = val('f-origem') || '—';
+    const destino = val('f-destino') || '—';
+    const carga   = val('f-carga') || 'Serviço de frete';
+    const valor   = fmt(val('f-valor'));
+    const pgto    = val('f-pagamento');
+    const prazo   = val('f-prazo') || '—';
+    const valid   = val('f-validade');
+
+    const msg = encodeURIComponent(
+      `🚐 *ORÇAMENTO DE FRETE ${numStr}*\n` +
+      `_Equipe Bauzinho_\n\n` +
+      `👤 Cliente: *${cliente}*\n\n` +
+      `📍 Origem: ${origem}\n` +
+      `🏁 Destino: ${destino}\n` +
+      `📦 Carga: ${carga}\n` +
+      `⏱ Prazo: ${prazo}\n\n` +
+      `💰 *Valor: ${valor}*\n` +
+      `💳 Pagamento: ${pgto}\n\n` +
+      `_Orçamento válido por ${valid}._\n\n` +
+      `Qualquer dúvida estou à disposição! 👊`
+    );
+
+    const base = tel.length >= 10 ? `https://wa.me/55${tel}` : 'https://wa.me/';
+    window.open(`${base}?text=${msg}`, '_blank');
+  }
+
+  // Inicializa
+  atualizar();
+</script>
+</body>
+</html>
