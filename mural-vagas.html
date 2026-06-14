@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mural de Vagas — Equipe Bauzinho</title>
+<meta name="description" content="Vagas para motoristas agregados, freteiros e transportadores autônomos. Equipe Bauzinho.">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+
+<!-- FIREBASE SDK -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getFirestore, collection, addDoc, getDocs, query, orderBy, where, serverTimestamp }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  // =====================================================
+  // 🔧 COLE AQUI SUAS CREDENCIAIS DO FIREBASE
+  // (você vai pegar no console.firebase.google.com)
+  // =====================================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyC1ba98aHDi-ZsITG9JMilTTNQEoJP-1hk",
+    authDomain: "mural-de-vagas-98dda.firebaseapp.com",
+    projectId: "mural-de-vagas-98dda",
+    storageBucket: "mural-de-vagas-98dda.firebasestorage.app",
+    messagingSenderId: "1030567338294",
+    appId: "1:1030567338294:web:3e6ee4655d6a8051e99397"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  // ===== POSTAR VAGA =====
+  window.postarVaga = async function() {
+    const btn = document.getElementById('btn-postar');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    const vaga = {
+      empresa:    v('p-empresa'),
+      cidade:     v('p-cidade'),
+      estado:     v('p-estado'),
+      tipo:       v('p-tipo'),
+      veiculo:    v('p-veiculo'),
+      descricao:  v('p-descricao'),
+      valor:      v('p-valor'),
+      contato:    v('p-contato'),
+      whatsapp:   v('p-whatsapp'),
+      timestamp:  serverTimestamp(),
+      ativa: true
+    };
+
+    // Validação básica
+    if (!vaga.empresa || !vaga.cidade || !vaga.tipo || !vaga.contato) {
+      mostrarMsg('form-msg', 'Preencha os campos obrigatórios.', 'erro');
+      btn.disabled = false;
+      btn.textContent = 'Publicar vaga';
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, 'vagas'), vaga);
+      mostrarMsg('form-msg', '✅ Vaga publicada com sucesso! Ela já aparece no mural.', 'ok');
+      document.getElementById('form-empresa').reset();
+      carregarVagas();
+    } catch(e) {
+      mostrarMsg('form-msg', '❌ Erro ao publicar. Verifique sua conexão e tente novamente.', 'erro');
+      console.error(e);
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Publicar vaga';
+  };
+
+  // ===== CARREGAR VAGAS =====
+  window.carregarVagas = async function(filtros = {}) {
+    const grid = document.getElementById('vagas-grid');
+    grid.innerHTML = `<div class="loading-vagas"><div class="spin"></div>Buscando vagas...</div>`;
+
+    try {
+      let q = query(collection(db, 'vagas'), orderBy('timestamp', 'desc'));
+      const snap = await getDocs(q);
+
+      let vagas = [];
+      snap.forEach(doc => vagas.push({ id: doc.id, ...doc.data() }));
+
+      // Filtros client-side
+      if (filtros.tipo)    vagas = vagas.filter(v => v.tipo === filtros.tipo);
+      if (filtros.estado)  vagas = vagas.filter(v => v.estado === filtros.estado);
+      if (filtros.veiculo) vagas = vagas.filter(v => v.veiculo === filtros.veiculo);
+      if (filtros.busca)   {
+        const t = filtros.busca.toLowerCase();
+        vagas = vagas.filter(v =>
+          v.empresa.toLowerCase().includes(t) ||
+          v.cidade.toLowerCase().includes(t) ||
+          v.descricao.toLowerCase().includes(t)
+        );
+      }
+
+      document.getElementById('total-vagas').textContent = vagas.length;
+
+      if (!vagas.length) {
+        grid.innerHTML = `<div class="sem-vagas">😕 Nenhuma vaga encontrada com esses filtros.<br><span>Tente remover alguns filtros ou volte mais tarde.</span></div>`;
+        return;
+      }
+
+      grid.innerHTML = vagas.map(vaga => cardVaga(vaga)).join('');
+
+    } catch(e) {
+      grid.innerHTML = `<div class="sem-vagas">❌ Erro ao carregar vagas.<br><span>Verifique sua conexão ou configure o Firebase.</span></div>`;
+      console.error(e);
+    }
+  };
+
+  function cardVaga(v) {
+    const data = v.timestamp?.toDate
+      ? v.timestamp.toDate().toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'})
+      : 'Recente';
+
+    const wppLink = v.whatsapp
+      ? `https://wa.me/55${v.whatsapp.replace(/\D/g,'')}?text=${encodeURIComponent(`Olá! Vi sua vaga no Mural da Equipe Bauzinho.\nEmpresa: ${v.empresa}\nVaga: ${v.tipo}`)}`
+      : null;
+
+    const tipoColor = {
+      'Agregado': '#1A6FFF',
+      'Frete avulso': '#F59E0B',
+      'Porta a porta': '#22C55E',
+      'Transportadora': '#8B5CF6',
+      'Outro': '#6B7280'
+    }[v.tipo] || '#1A6FFF';
+
+    return `
+      <div class="vaga-card">
+        <div class="vaga-header">
+          <div>
+            <div class="vaga-empresa">${v.empresa}</div>
+            <div class="vaga-local">📍 ${v.cidade}${v.estado ? ', ' + v.estado : ''}</div>
+          </div>
+          <span class="vaga-tipo" style="background:${tipoColor}">${v.tipo}</span>
+        </div>
+        ${v.veiculo ? `<div class="vaga-veiculo">🚐 ${v.veiculo}</div>` : ''}
+        ${v.descricao ? `<div class="vaga-desc">${v.descricao}</div>` : ''}
+        <div class="vaga-footer">
+          <div class="vaga-info">
+            ${v.valor ? `<span class="vaga-valor">💰 ${v.valor}</span>` : ''}
+            <span class="vaga-data">${data}</span>
+          </div>
+          <div class="vaga-acoes">
+            ${wppLink
+              ? `<a class="btn-wpp-vaga" href="${wppLink}" target="_blank">💬 WhatsApp</a>`
+              : `<span class="vaga-contato">📞 ${v.contato}</span>`
+            }
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Init
+  window.addEventListener('DOMContentLoaded', () => {
+    carregarVagas();
+
+    // Filtros
+    document.getElementById('f-tipo')?.addEventListener('change', aplicarFiltros);
+    document.getElementById('f-estado')?.addEventListener('change', aplicarFiltros);
+    document.getElementById('f-veiculo')?.addEventListener('change', aplicarFiltros);
+    document.getElementById('f-busca')?.addEventListener('input', aplicarFiltros);
+  });
+</script>
+
+<style>
+  :root {
+    --preto: #06080D;
+    --azul: #1A6FFF;
+    --azul-brilho: #4D9FFF;
+    --branco: #EEF2FF;
+    --cinza: #141828;
+    --cinza2: #1E2438;
+    --muted: #7880A0;
+    --verde: #22C55E;
+    --amarelo: #F59E0B;
+    --vermelho: #EF4444;
+    --borda: rgba(26,111,255,0.15);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+
+  body {
+    background: var(--preto);
+    color: var(--branco);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      linear-gradient(rgba(26,111,255,0.035) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(26,111,255,0.035) 1px,transparent 1px);
+    background-size:48px 48px;
+  }
+
+  /* NAV */
+  nav {
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    padding:14px 24px;
+    display:flex; align-items:center; justify-content:space-between;
+    background:rgba(6,8,13,0.9); backdrop-filter:blur(12px);
+    border-bottom:1px solid rgba(26,111,255,0.1);
+  }
+
+  .nav-logo { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:4px; color:var(--branco); text-decoration:none; }
+  .nav-logo span { color:var(--azul); }
+  .nav-back { font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); text-decoration:none; transition:color 0.2s; }
+  .nav-back:hover { color:var(--branco); }
+
+  /* WRAP */
+  .wrap { max-width:1100px; margin:0 auto; padding:100px 20px 80px; position:relative; z-index:1; }
+
+  /* HEADER */
+  .page-header { text-align:center; margin-bottom:40px; }
+  .page-badge { display:inline-block; background:rgba(26,111,255,0.12); border:1px solid rgba(26,111,255,0.3); color:var(--azul-brilho); font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; padding:5px 14px; border-radius:2px; margin-bottom:14px; }
+  .page-title { font-family:'Bebas Neue',sans-serif; font-size:clamp(40px,8vw,70px); line-height:0.92; letter-spacing:2px; margin-bottom:12px; }
+  .page-title span { color:var(--azul); }
+  .page-desc { font-size:14px; color:var(--muted); line-height:1.6; max-width:500px; margin:0 auto; }
+  .divider { width:50px; height:3px; background:var(--azul); margin:14px auto; }
+
+  /* ABAS */
+  .abas {
+    display:flex; gap:0;
+    background:var(--cinza2);
+    border:1px solid var(--borda);
+    border-radius:8px; overflow:hidden;
+    margin-bottom:32px;
+  }
+
+  .aba {
+    flex:1; padding:16px 24px;
+    font-size:14px; font-weight:700; letter-spacing:1px;
+    text-transform:uppercase; text-align:center;
+    cursor:pointer; transition:all 0.2s;
+    color:var(--muted); background:transparent;
+    border:none; border-right:1px solid var(--borda);
+    font-family:'Barlow',sans-serif;
+  }
+
+  .aba:last-child { border-right:none; }
+  .aba.ativa { background:var(--azul); color:#fff; }
+  .aba:not(.ativa):hover { background:rgba(26,111,255,0.08); color:var(--branco); }
+
+  /* PAINEL */
+  .painel { display:none; }
+  .painel.ativo { display:block; animation:fadeUp 0.3s ease; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+
+  /* FORM EMPRESA */
+  .form-card {
+    background:var(--cinza2); border:1px solid var(--borda);
+    border-radius:8px; padding:28px; position:relative; overflow:hidden;
+  }
+
+  .form-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; background:linear-gradient(90deg,var(--azul),transparent 70%); }
+
+  .form-section { font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--azul-brilho); margin-bottom:16px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.06); }
+
+  .field-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+  .field-full { grid-column:1/-1; }
+
+  .field { display:flex; flex-direction:column; gap:7px; }
+
+  label { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+  label .req { color:var(--azul-brilho); }
+
+  input, textarea, select {
+    background:rgba(0,0,0,0.4); border:1px solid rgba(26,111,255,0.18);
+    border-radius:4px; color:var(--branco);
+    font-family:'Barlow',sans-serif; font-size:14px; font-weight:500;
+    padding:11px 14px; outline:none;
+    transition:border-color 0.2s,box-shadow 0.2s;
+    -webkit-appearance:none;
+  }
+
+  input:focus, textarea:focus, select:focus { border-color:var(--azul); box-shadow:0 0 0 3px rgba(26,111,255,0.12); }
+  input::placeholder, textarea::placeholder { color:rgba(136,144,170,0.35); }
+  select option { background:#1E2438; }
+  textarea { resize:vertical; min-height:80px; }
+
+  .btn-postar {
+    width:100%; padding:15px;
+    background:var(--azul); color:#fff; border:none; border-radius:4px;
+    font-family:'Barlow',sans-serif; font-size:13px; font-weight:700;
+    letter-spacing:2px; text-transform:uppercase;
+    cursor:pointer; transition:all 0.2s; margin-top:6px;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+
+  .btn-postar:hover { background:var(--azul-brilho); transform:translateY(-1px); box-shadow:0 8px 24px rgba(26,111,255,0.3); }
+  .btn-postar:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+
+  /* MENSAGEM */
+  .form-msg { display:none; padding:12px 16px; border-radius:4px; font-size:13px; margin-top:12px; line-height:1.5; }
+  .form-msg.ok { display:block; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); color:#86efac; }
+  .form-msg.erro { display:block; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; }
+
+  /* BUSCA/FILTROS */
+  .filtros-bar {
+    background:var(--cinza2); border:1px solid var(--borda);
+    border-radius:8px; padding:20px;
+    display:grid; grid-template-columns:2fr 1fr 1fr 1fr;
+    gap:12px; margin-bottom:20px;
+  }
+
+  .filtros-bar input, .filtros-bar select { padding:10px 12px; font-size:13px; }
+
+  /* CONTADOR */
+  .vagas-header {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:16px;
+  }
+
+  .vagas-count { font-size:13px; color:var(--muted); }
+  .vagas-count strong { color:var(--azul-brilho); font-size:18px; font-family:'Bebas Neue',sans-serif; letter-spacing:1px; }
+
+  /* GRID VAGAS */
+  .vagas-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+  /* CARD VAGA */
+  .vaga-card {
+    background:var(--cinza2); border:1px solid var(--borda);
+    border-radius:8px; padding:20px;
+    display:flex; flex-direction:column; gap:10px;
+    transition:all 0.2s; position:relative; overflow:hidden;
+  }
+
+  .vaga-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; background:linear-gradient(90deg,var(--azul),transparent 70%); opacity:0; transition:opacity 0.2s; }
+  .vaga-card:hover { border-color:rgba(26,111,255,0.3); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,0.3); }
+  .vaga-card:hover::before { opacity:1; }
+
+  .vaga-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+
+  .vaga-empresa { font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:800; letter-spacing:0.5px; margin-bottom:2px; }
+
+  .vaga-local { font-size:12px; color:var(--muted); }
+
+  .vaga-tipo { font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#fff; padding:4px 10px; border-radius:2px; white-space:nowrap; flex-shrink:0; }
+
+  .vaga-veiculo { font-size:12px; color:var(--azul-brilho); font-weight:600; }
+
+  .vaga-desc { font-size:13px; color:var(--muted); line-height:1.55; }
+
+  .vaga-footer { display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding-top:12px; border-top:1px solid rgba(255,255,255,0.05); gap:10px; flex-wrap:wrap; }
+
+  .vaga-info { display:flex; flex-direction:column; gap:3px; }
+  .vaga-valor { font-size:13px; font-weight:700; color:var(--verde); }
+  .vaga-data { font-size:10px; color:var(--muted); }
+  .vaga-contato { font-size:12px; color:var(--muted); }
+
+  .btn-wpp-vaga {
+    display:inline-flex; align-items:center; gap:6px;
+    background:#16A34A; color:#fff; text-decoration:none;
+    padding:9px 16px; border-radius:4px;
+    font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+    transition:all 0.2s; white-space:nowrap;
+  }
+
+  .btn-wpp-vaga:hover { background:#22C55E; transform:translateY(-1px); }
+
+  /* LOADING/EMPTY */
+  .loading-vagas { grid-column:1/-1; text-align:center; padding:50px; color:var(--muted); }
+  .spin { width:32px; height:32px; border:3px solid rgba(26,111,255,0.2); border-top-color:var(--azul); border-radius:50%; animation:girar 0.8s linear infinite; margin:0 auto 12px; }
+  @keyframes girar { to { transform:rotate(360deg); } }
+
+  .sem-vagas { grid-column:1/-1; text-align:center; padding:50px; color:var(--muted); font-size:15px; line-height:1.8; }
+  .sem-vagas span { font-size:13px; display:block; margin-top:6px; }
+
+  /* AVISO FIREBASE */
+  .aviso-config {
+    background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25);
+    border-radius:6px; padding:16px 20px; margin-bottom:20px;
+    font-size:13px; color:#FCD34D; line-height:1.6; display:none;
+  }
+
+  /* FOOTER */
+  .site-footer { text-align:center; margin-top:60px; padding:28px; border-top:1px solid rgba(255,255,255,0.05); }
+  .footer-logo { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:4px; color:var(--muted); }
+  .footer-logo span { color:var(--azul); }
+  .footer-tag { font-size:10px; color:rgba(136,144,170,0.4); letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+
+  @media(max-width:768px) {
+    .filtros-bar { grid-template-columns:1fr 1fr; }
+    .vagas-grid { grid-template-columns:1fr; }
+    .field-grid { grid-template-columns:1fr; }
+  }
+
+  @media(max-width:480px) {
+    .filtros-bar { grid-template-columns:1fr; }
+    .wrap { padding:90px 14px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="../index.html">EQUIPE <span>BAUZINHO</span></a>
+  <a class="nav-back" href="../index.html">← Voltar ao site</a>
+</nav>
+
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="page-header">
+    <div class="page-badge">Equipe Bauzinho</div>
+    <h1 class="page-title">Mural de<br><span>Vagas</span></h1>
+    <div class="divider"></div>
+    <p class="page-desc">Transportadoras e empresas publicam vagas para agregados. Motoristas encontram oportunidades de trabalho.</p>
+  </div>
+
+  <!-- AVISO FIREBASE (aparece se não configurado) -->
+  <div class="aviso-config" id="aviso-config">
+    ⚙️ <strong>Configure o Firebase</strong> para ativar o mural. Substitua as credenciais no início do código pelo seus dados do Firebase Console.
+    <a href="https://console.firebase.google.com" target="_blank" style="color:#FCD34D;text-decoration:underline;margin-left:6px">Abrir Firebase Console →</a>
+  </div>
+
+  <!-- ABAS -->
+  <div class="abas">
+    <button class="aba ativa" onclick="trocarAba('buscar')">🔍 Buscar vagas</button>
+    <button class="aba" onclick="trocarAba('empresa')">📋 Publicar vaga</button>
+  </div>
+
+  <!-- ABA: BUSCAR VAGAS -->
+  <div class="painel ativo" id="painel-buscar">
+
+    <!-- FILTROS -->
+    <div class="filtros-bar">
+      <input type="text" id="f-busca" placeholder="🔍 Buscar por empresa, cidade...">
+      <select id="f-tipo">
+        <option value="">Tipo de vaga</option>
+        <option>Agregado</option>
+        <option>Frete avulso</option>
+        <option>Porta a porta</option>
+        <option>Transportadora</option>
+        <option>Outro</option>
+      </select>
+      <select id="f-estado">
+        <option value="">Estado</option>
+        <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
+        <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+        <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
+        <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+        <option>PI</option><option>PR</option><option>RJ</option><option>RN</option>
+        <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
+        <option>SE</option><option>SP</option><option>TO</option>
+      </select>
+      <select id="f-veiculo">
+        <option value="">Veículo</option>
+        <option>Fiorino</option>
+        <option>Kangoo</option>
+        <option>Partner</option>
+        <option>Doblo</option>
+        <option>Van</option>
+        <option>Qualquer utilitário</option>
+      </select>
+    </div>
+
+    <!-- CONTADOR -->
+    <div class="vagas-header">
+      <div class="vagas-count"><strong id="total-vagas">0</strong> vagas disponíveis</div>
+      <button onclick="carregarVagas()" style="background:none;border:1px solid var(--borda);border-radius:4px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer;font-family:'Barlow',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s" onmouseover="this.style.color='var(--branco)'" onmouseout="this.style.color='var(--muted)'">↻ Atualizar</button>
+    </div>
+
+    <!-- GRID -->
+    <div class="vagas-grid" id="vagas-grid">
+      <div class="loading-vagas">
+        <div class="spin"></div>
+        Buscando vagas...
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ABA: PUBLICAR VAGA -->
+  <div class="painel" id="painel-empresa">
+    <div class="form-card">
+      <form id="form-empresa" onsubmit="event.preventDefault(); postarVaga()">
+
+        <div class="form-section">Dados da empresa</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>Nome da empresa <span class="req">*</span></label>
+            <input type="text" id="p-empresa" placeholder="Ex: Transportadora Silva" required>
+          </div>
+          <div class="field">
+            <label>Tipo de vaga <span class="req">*</span></label>
+            <select id="p-tipo" required>
+              <option value="">Selecione...</option>
+              <option>Agregado</option>
+              <option>Frete avulso</option>
+              <option>Porta a porta</option>
+              <option>Transportadora</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Cidade <span class="req">*</span></label>
+            <input type="text" id="p-cidade" placeholder="Ex: Belo Horizonte" required>
+          </div>
+          <div class="field">
+            <label>Estado</label>
+            <select id="p-estado">
+              <option value="">Selecione...</option>
+              <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
+              <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+              <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
+              <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+              <option>PI</option><option>PR</option><option>RJ</option><option>RN</option>
+              <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
+              <option>SE</option><option>SP</option><option>TO</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-section" style="margin-top:8px">Detalhes da vaga</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>Veículo necessário</label>
+            <select id="p-veiculo">
+              <option value="">Qualquer utilitário</option>
+              <option>Fiorino</option>
+              <option>Kangoo</option>
+              <option>Partner</option>
+              <option>Doblo</option>
+              <option>Van</option>
+              <option>Qualquer utilitário</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Valor / Diária</label>
+            <input type="text" id="p-valor" placeholder="Ex: R$ 280/dia ou a combinar">
+          </div>
+          <div class="field field-full">
+            <label>Descrição da vaga</label>
+            <textarea id="p-descricao" placeholder="Descreva a vaga: roteiro, horários, tipo de carga, requisitos..."></textarea>
+          </div>
+        </div>
+
+        <div class="form-section" style="margin-top:8px">Contato</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>Nome do contato <span class="req">*</span></label>
+            <input type="text" id="p-contato" placeholder="Ex: João Silva" required>
+          </div>
+          <div class="field">
+            <label>WhatsApp (com DDD)</label>
+            <input type="text" id="p-whatsapp" placeholder="31 9 9999-9999">
+          </div>
+        </div>
+
+        <button type="submit" class="btn-postar" id="btn-postar">
+          📋 Publicar vaga grátis
+        </button>
+        <div class="form-msg" id="form-msg"></div>
+
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="footer-logo">EQUIPE <span>BAUZINHO</span></div>
+  <div class="footer-tag">Frete com propósito • Belo Horizonte, MG</div>
+</footer>
+
+<script>
+  // ===== ABAS =====
+  function trocarAba(aba) {
+    document.querySelectorAll('.aba').forEach(el => el.classList.remove('ativa'));
+    document.querySelectorAll('.painel').forEach(el => el.classList.remove('ativo'));
+    document.getElementById('painel-' + aba).classList.add('ativo');
+    event.target.classList.add('ativa');
+  }
+
+  // ===== FILTROS =====
+  function aplicarFiltros() {
+    const filtros = {
+      tipo:    document.getElementById('f-tipo')?.value,
+      estado:  document.getElementById('f-estado')?.value,
+      veiculo: document.getElementById('f-veiculo')?.value,
+      busca:   document.getElementById('f-busca')?.value,
+    };
+    carregarVagas(filtros);
+  }
+
+  // ===== MENSAGEM =====
+  function mostrarMsg(id, texto, tipo) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = texto;
+    el.className = 'form-msg ' + tipo;
+  }
+
+  function v(id) { return document.getElementById(id)?.value?.trim() || ''; }
+
+  // Verifica se Firebase foi configurado
+  window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      const scripts = document.querySelector('script[type="module"]')?.textContent || '';
+      if (scripts.includes('"COLE_AQUI"')) {
+        document.getElementById('aviso-config').style.display = 'block';
+      }
+    }, 500);
+  });
+</script>
+</body>
+</html>
