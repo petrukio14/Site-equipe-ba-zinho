@@ -530,6 +530,90 @@
 
   .reveal.visible { opacity: 1; transform: translateY(0); }
 
+
+  /* ===== NOTÍCIAS ===== */
+  .noticias-section {}
+
+  .noticias-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .noticia-card {
+    background: var(--cinza2);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.2s;
+  }
+
+  .noticia-card:hover {
+    border-color: rgba(26,111,255,0.3);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+  }
+
+  .noticia-img {
+    width: 100%; aspect-ratio: 16/9;
+    background: linear-gradient(135deg, #0D1525, #1A2540);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; flex-shrink: 0;
+  }
+
+  .noticia-body { padding: 16px; flex: 1; display: flex; flex-direction: column; }
+
+  .noticia-fonte {
+    font-size: 9px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--azul-brilho);
+    margin-bottom: 6px;
+  }
+
+  .noticia-titulo {
+    font-size: 13px; font-weight: 700; line-height: 1.5;
+    color: var(--branco); margin-bottom: 8px; flex: 1;
+  }
+
+  .noticia-data {
+    font-size: 10px; color: var(--muted);
+    margin-top: auto; padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .noticias-loading {
+    grid-column: 1 / -1;
+    text-align: center; padding: 40px;
+    color: var(--muted); font-size: 14px;
+  }
+
+  .noticias-loading .spin {
+    width: 32px; height: 32px;
+    border: 3px solid rgba(26,111,255,0.2);
+    border-top-color: var(--azul);
+    border-radius: 50%;
+    animation: giro 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+
+  @keyframes giro {
+    to { transform: rotate(360deg); }
+  }
+
+  .noticia-erro {
+    grid-column: 1 / -1;
+    background: rgba(26,111,255,0.05);
+    border: 1px solid rgba(26,111,255,0.15);
+    border-radius: 6px; padding: 24px;
+    text-align: center; color: var(--muted); font-size: 13px; line-height: 1.6;
+  }
+
+  @media(max-width:768px){ .noticias-grid { grid-template-columns: 1fr 1fr; } }
+  @media(max-width:480px){ .noticias-grid { grid-template-columns: 1fr; } }
+
   /* MOBILE */
   @media(max-width:768px) {
     .simulador-inner { grid-template-columns: 1fr; gap: 32px; }
@@ -738,6 +822,29 @@
   </div>
 </section>
 
+
+<!-- NOTÍCIAS -->
+<section class="noticias-section" id="noticias" style="border-top:1px solid rgba(255,255,255,0.04)">
+  <div class="section-inner">
+    <div class="reveal" style="margin-bottom:36px">
+      <p class="section-label">Atualizado automaticamente</p>
+      <h2 class="section-title">Notícias do <span>Transporte</span></h2>
+      <p class="section-desc">Tudo que importa para motoristas autônomos, freteiros e entregadores — atualizado direto do Google News.</p>
+    </div>
+
+    <div class="noticias-grid reveal" id="noticias-grid">
+      <div class="noticias-loading">
+        <div class="spin"></div>
+        Buscando notícias...
+      </div>
+    </div>
+
+    <div class="ver-mais-wrap reveal" style="margin-top:28px">
+      <a class="btn btn-outline" href="https://news.google.com/search?q=transporte+frete+motorista+autonomo+Brasil&hl=pt-BR" target="_blank">Ver mais notícias →</a>
+    </div>
+  </div>
+</section>
+
 <!-- FERRAMENTAS / APPS -->
 <section class="apps-section" id="ferramentas">
   <div class="section-inner">
@@ -884,6 +991,135 @@
 </footer>
 
 <script>
+
+  // ===== NOTÍCIAS GOOGLE NEWS RSS =====
+  async function carregarNoticias() {
+    const grid = document.getElementById('noticias-grid');
+
+    const termos = [
+      'frete+motorista+autonomo+Brasil',
+      'Fiorino+entrega+transporte+Brasil',
+      'logistica+entregador+autonomo+Brasil',
+      'transporte+carga+utilitario+Brasil'
+    ];
+
+    // Pega um termo aleatório para variar as notícias
+    const termo = termos[Math.floor(Math.random() * termos.length)];
+
+    // Proxy público para contornar CORS do RSS
+    const rssUrl = `https://news.google.com/rss/search?q=${termo}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+
+    try {
+      const resp = await fetch(proxyUrl);
+      const data = await resp.json();
+
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(data.contents, 'text/xml');
+      const items = xml.querySelectorAll('item');
+
+      if (!items.length) throw new Error('Sem itens');
+
+      const emojis = ['🚐','📦','🛣️','💰','🔧','📋','🚛','⛽','📱','🤝','📈','🏁'];
+      const categorias = ['Frete','Logística','Transporte','Mercado','Veículos','Legislação','Tecnologia','Entregas'];
+
+      let html = '';
+      let count = 0;
+
+      items.forEach(item => {
+        if (count >= 6) return;
+
+        const titulo = item.querySelector('title')?.textContent || '';
+        const link   = item.querySelector('link')?.textContent || '#';
+        const fonte  = item.querySelector('source')?.textContent || 'Google News';
+        const pubDate = item.querySelector('pubDate')?.textContent || '';
+
+        // Limpa título (remove nome da fonte no final)
+        const tituloLimpo = titulo.replace(/ - [^-]+$/, '').trim();
+
+        // Formata data
+        let dataFmt = '';
+        if (pubDate) {
+          const d = new Date(pubDate);
+          dataFmt = d.toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' });
+        }
+
+        const emoji = emojis[count % emojis.length];
+        const cat   = categorias[count % categorias.length];
+
+        html += `
+          <a class="noticia-card" href="${link}" target="_blank" rel="noopener">
+            <div class="noticia-img">${emoji}</div>
+            <div class="noticia-body">
+              <div class="noticia-fonte">${cat} • ${fonte}</div>
+              <div class="noticia-titulo">${tituloLimpo}</div>
+              <div class="noticia-data">${dataFmt}</div>
+            </div>
+          </a>
+        `;
+        count++;
+      });
+
+      grid.innerHTML = html || '<div class="noticia-erro">Nenhuma notícia encontrada agora. Tente novamente em instantes.</div>';
+
+    } catch(e) {
+      // Fallback — notícias fixas úteis caso o RSS falhe
+      grid.innerHTML = `
+        <a class="noticia-card" href="https://news.google.com/search?q=frete+motorista+autonomo&hl=pt-BR" target="_blank">
+          <div class="noticia-img">🚐</div>
+          <div class="noticia-body">
+            <div class="noticia-fonte">Frete • Google News</div>
+            <div class="noticia-titulo">Oportunidades de frete para autônomos no Brasil — veja as últimas notícias</div>
+            <div class="noticia-data">Hoje</div>
+          </div>
+        </a>
+        <a class="noticia-card" href="https://news.google.com/search?q=Fiorino+entrega+transporte&hl=pt-BR" target="_blank">
+          <div class="noticia-img">📦</div>
+          <div class="noticia-body">
+            <div class="noticia-fonte">Veículos • Google News</div>
+            <div class="noticia-titulo">Fiorino e utilitários leves em alta no mercado de entregas urbanas</div>
+            <div class="noticia-data">Hoje</div>
+          </div>
+        </a>
+        <a class="noticia-card" href="https://news.google.com/search?q=logistica+entregador+autonomo+Brasil&hl=pt-BR" target="_blank">
+          <div class="noticia-img">🛣️</div>
+          <div class="noticia-body">
+            <div class="noticia-fonte">Logística • Google News</div>
+            <div class="noticia-titulo">Mercado de logística e entregas cresce e abre vagas para motoristas autônomos</div>
+            <div class="noticia-data">Hoje</div>
+          </div>
+        </a>
+        <a class="noticia-card" href="https://news.google.com/search?q=MEI+motorista+transporte&hl=pt-BR" target="_blank">
+          <div class="noticia-img">📋</div>
+          <div class="noticia-body">
+            <div class="noticia-fonte">Legislação • Google News</div>
+            <div class="noticia-titulo">MEI para motoristas: o que mudou e como regularizar sua situação</div>
+            <div class="noticia-data">Hoje</div>
+          </div>
+        </a>
+        <a class="noticia-card" href="https://news.google.com/search?q=combustivel+preco+gasolina+etanol&hl=pt-BR" target="_blank">
+          <div class="noticia-img">⛽</div>
+          <div class="noticia-body">
+            <div class="noticia-fonte">Mercado • Google News</div>
+            <div class="noticia-titulo">Preço do combustível: como economizar e calcular o impacto no frete</div>
+            <div class="noticia-data">Hoje</div>
+          </div>
+        </a>
+        <a class="noticia-card" href="https://news.google.com/search?q=ecommerce+entregas+crescimento+Brasil&hl=pt-BR" target="_blank">
+          <div class="noticia-img">📈</div>
+          <div class="noticia-body">
+            <div class="noticia-fonte">E-commerce • Google News</div>
+            <div class="noticia-titulo">E-commerce em expansão abre mais espaço para entregadores e freteiros autônomos</div>
+            <div class="noticia-data">Hoje</div>
+          </div>
+        </a>
+      `;
+    }
+  }
+
+  carregarNoticias();
+
+
   // Scroll reveal
   const reveals = document.querySelectorAll('.reveal');
   const observer = new IntersectionObserver((entries) => {
